@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>AWS Instance Share</title>
+		<style>
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+					Roboto, Oxygen, Ubuntu, sans-serif;
+				margin: 0;
+				<div class="info-box">
+				<h4>💻 Desktop Apps Note</h4>
+				<p>
+					If desktop apps open web Gmail instead, your system's default email is set to Gmail web. To use actual desktop apps: Windows (Settings > Apps > Default apps > Email), macOS (Mail preferences), Linux (system settings > Default applications).
+				</p>
+			</div>
+
+			<div class="info-box">
+				<h4>🔒 Privacy First</h4>
+				<p>
+					No recipient data stored. All processing happens locally in
+					your browser.
+				</p>
+			</div>ing: 0;
+				width: 320px;
+				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			}
+
+			.container {
+				background: white;
+				padding: 20px;
+				min-height: 400px;
+			}
+
+			.header {
+				text-align: center;
+				margin-bottom: 20px;
+				padding-bottom: 15px;
+				border-bottom: 2px solid #f0f0f0;
+			}
+
+			.header h2 {
+				color: #333;
+				margin: 0 0 5px 0;
+				font-weight: 600;
+				font-size: 18px;
+			}
+
+			.header p {
+				color: #666;
+				margin: 0;
+				font-size: 12px;
+			}
+
+			.form-group {
+				margin-bottom: 18px;
+			}
+
+			label {
+				display: block;
+				margin-bottom: 6px;
+				color: #333;
+				font-weight: 500;
+				font-size: 13px;
+			}
+
+			.label-icon {
+				margin-right: 6px;
+				font-size: 14px;
+			}
+
+			select {
+				width: 100%;
+				padding: 10px 12px;
+				border: 2px solid #e1e5e9;
+				border-radius: 6px;
+				font-size: 13px;
+				transition: border-color 0.2s ease, box-shadow 0.2s ease;
+				background: white;
+			}
+
+			select:focus {
+				outline: none;
+				border-color: #ff9500;
+				box-shadow: 0 0 0 2px rgba(255, 149, 0, 0.1);
+			}
+
+			optgroup {
+				font-weight: 600;
+				color: #333;
+				background: #f8f9fa;
+				font-size: 12px;
+			}
+
+			optgroup option {
+				font-weight: 400;
+				color: #495057;
+				padding-left: 15px;
+			}
+
+			.button-group {
+				display: flex;
+				gap: 8px;
+				margin-top: 20px;
+			}
+
+			button {
+				flex: 1;
+				padding: 10px 16px;
+				border: none;
+				border-radius: 6px;
+				font-size: 12px;
+				font-weight: 600;
+				cursor: pointer;
+				transition: all 0.2s ease;
+			}
+
+			#save {
+				background: linear-gradient(135deg, #ff9500, #ff6b35);
+				color: white;
+			}
+
+			#save:hover {
+				background: linear-gradient(135deg, #e8850a, #e55b2b);
+				transform: translateY(-1px);
+				box-shadow: 0 3px 8px rgba(255, 149, 0, 0.3);
+			}
+
+			#test {
+				background: #f8f9fa;
+				color: #495057;
+				border: 1px solid #e9ecef;
+			}
+
+			#test:hover {
+				background: #e9ecef;
+				border-color: #dee2e6;
+			}
+
+			.info-box {
+				background: #f8f9fa;
+				border: 1px solid #e9ecef;
+				border-radius: 6px;
+				padding: 12px;
+				margin-top: 15px;
+			}
+
+			.info-box h4 {
+				margin: 0 0 6px 0;
+				color: #495057;
+				font-size: 12px;
+				font-weight: 600;
+			}
+
+			.info-box p {
+				margin: 0;
+				color: #6c757d;
+				font-size: 11px;
+				line-height: 1.4;
+			}
+
+			.success-message {
+				background: #d4edda;
+				border: 1px solid #c3e6cb;
+				color: #155724;
+				padding: 10px 12px;
+				border-radius: 6px;
+				margin-top: 12px;
+				display: none;
+				align-items: center;
+				gap: 6px;
+				font-size: 12px;
+			}
+
+			.status-section {
+				margin-top: 15px;
+				padding-top: 15px;
+				border-top: 1px solid #f0f0f0;
+			}
+
+			.status-item {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				margin-bottom: 8px;
+				font-size: 12px;
+			}
+
+			.status-indicator {
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				background: #28a745;
+			}
+
+			.status-indicator.inactive {
+				background: #dc3545;
+			}
+
+			@keyframes spin {
+				0% {
+					transform: rotate(0deg);
+				}
+				100% {
+					transform: rotate(360deg);
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<div class="header">
+				<h2>🚀 AWS Instance Share</h2>
+				<p>Quick email sharing configuration</p>
+			</div>
+
+			<form id="popup-form">
+				<div class="form-group">
+					<label for="composer">
+						<span class="label-icon">✉️</span>Email Composer
+					</label>
+					<select id="composer" required>
+						<optgroup label="🌐 Web Clients">
+							<option value="gmail">Gmail</option>
+							<option value="outlook">Outlook Web</option>
+							<option value="yahoo">Yahoo Mail</option>
+							<option value="protonmail">ProtonMail</option>
+							<option value="aol">AOL Mail</option>
+							<option value="icloud">iCloud Mail</option>
+						</optgroup>
+						<optgroup label="💻 Desktop Applications">
+							<option value="thunderbird">Thunderbird</option>
+							<option value="outlook-office">
+								Outlook Desktop
+							</option>
+							<option value="apple-mail">Apple Mail</option>
+							<option value="evolution">Evolution (Linux)</option>
+							<option value="kmail">KMail (Linux)</option>
+							<option value="mailto">Default Email App</option>
+						</optgroup>
+					</select>
+				</div>
+
+				<div class="button-group">
+					<button type="button" id="test">🧪 Test</button>
+					<button type="submit" id="save">💾 Save</button>
+				</div>
+
+				<div id="success-message" class="success-message">
+					<span>✅</span>
+					<span>Settings saved!</span>
+				</div>
+			</form>
+
+			<div class="status-section">
+				<h4 style="margin: 0 0 8px 0; font-size: 12px; color: #495057">
+					Status
+				</h4>
+				<div class="status-item">
+					<div class="status-indicator" id="extension-status"></div>
+					<span id="extension-text">Extension Active</span>
+				</div>
+				<div class="status-item">
+					<div class="status-indicator" id="aws-status"></div>
+					<span id="aws-text">Checking AWS Console...</span>
+				</div>
+			</div>
+
+			<div class="info-box">
+				<h4>📧 How it works</h4>
+				<p>
+					Click Share buttons next to AWS instances. Choose between
+					web clients (Gmail, Outlook Web, Yahoo) or desktop
+					applications (Thunderbird, Outlook Desktop). Email opens
+					with instance details - just add recipients and send!
+				</p>
+			</div>
+
+			<div class="info-box">
+				<h4>💻 Desktop Apps Note</h4>
+				<p>
+					If desktop apps open web Gmail instead, your system's
+					default email is set to Gmail. Change it in your OS
+					settings: Windows (Settings > Apps > Default apps), macOS
+					(Mail app preferences), Linux (system settings).
+				</p>
+			</div>
+
+			<div class="info-box">
+				<h4>🔒 Privacy First</h4>
+				<p>
+					No recipient data stored. All processing happens locally in
+					your browser.
+				</p>
+			</div>
+		</div>
+
+		<script src="popup.js"></script>
+	</body>
+</html>

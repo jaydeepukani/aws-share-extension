@@ -1,0 +1,44 @@
+{
+	"manifest_version": 3,
+	"name": "AWS Instance Share",
+	"version": "1.0",
+	"description": "Add a Share button next to EC2 / Lightsail instances to email instance details and open configured mail composer.",
+	"permissions": ["activeTab", "scripting", "storage", "notifications"],
+	"host_permissions": [
+		"https://*.aws.amazon.com/*",
+		"https://*.amazonaws.com/*",
+		"https://outlook.office.com/*",
+		"https://mail.google.com/*"
+	],
+	"icons": {
+		"16": "icons/icon16.png",
+		"48": "icons/icon48.png",
+		"128": "icons/icon128.png"
+	},
+	"action": {
+		"default_popup": "popup.html",
+		"default_title": "AWS Instance Share",
+		"default_icon": {
+			"16": "icons/icon16.png",
+			"48": "icons/icon48.png",
+			"128": "icons/icon128.png"
+		}
+	},
+	"background": {
+		"service_worker": "background.js"
+	},
+	"content_scripts": [
+		{
+			"matches": [
+				"https://lightsail.aws.amazon.com/*",
+				"https://*.console.aws.amazon.com/*"
+			],
+			"js": [
+				"content_script_common.js",
+				"content_script_lightsail.js",
+				"content_script_ec2.js"
+			],
+			"run_at": "document_idle"
+		}
+	]
+}
