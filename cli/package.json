@@ -1,0 +1,33 @@
+{
+	"name": "aws-instance-fetcher",
+	"version": "1.0.0",
+	"description": "CLI tool to fetch full EC2 and Lightsail instance details using Playwright",
+	"main": "index.js",
+	"type": "module",
+	"bin": {
+		"aws-fetch": "./index.js"
+	},
+	"scripts": {
+		"start": "node index.js",
+		"fetch:ec2": "node index.js --service ec2",
+		"fetch:lightsail": "node index.js --service lightsail",
+		"fetch:all": "node index.js --service all"
+	},
+	"dependencies": {
+		"playwright": "^1.48.0",
+		"commander": "^12.0.0",
+		"chalk": "^5.3.0"
+	},
+	"engines": {
+		"node": ">=18.0.0"
+	},
+	"keywords": [
+		"aws",
+		"ec2",
+		"lightsail",
+		"playwright",
+		"scraper"
+	],
+	"author": "",
+	"license": "MIT"
+}

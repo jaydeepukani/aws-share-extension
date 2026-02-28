@@ -175,11 +175,11 @@
 		try {
 			// Both EC2 and Lightsail use this meta tag
 			const sessionDataMeta = document.querySelector(
-				'meta[name="awsc-session-data"]'
+				'meta[name="awsc-session-data"]',
 			);
 			if (sessionDataMeta) {
 				const sessionData = JSON.parse(
-					sessionDataMeta.getAttribute("content")
+					sessionDataMeta.getAttribute("content"),
 				);
 
 				if (sessionData.accountId) {
@@ -187,7 +187,7 @@
 				}
 				if (sessionData.displayName) {
 					accountInfo.name = decodeURIComponent(
-						sessionData.displayName
+						sessionData.displayName,
 					);
 				}
 				if (sessionData.infrastructureRegion) {
@@ -231,174 +231,291 @@
 		return urlRegion ? urlRegion[1] : "";
 	};
 
-	// Build formatted email body with IPv6 support
-	window.awsExtension.buildEmailBody = function (details, accountInfo = {}) {
+	// Separator line - short version for compact email (URL safe)
+	const SEPARATOR_SHORT = "────────────────────────────────";
+	// Separator line - full version for clipboard
+	const SEPARATOR_FULL =
+		"─────────────────────────────────────────────────────────────────";
+
+	// Build formatted email body with comprehensive field support
+	// compact: true = shorter format for URL (avoid 400 errors), false = full format for clipboard
+	window.awsExtension.buildEmailBody = function (
+		details,
+		accountInfo = {},
+		compact = false,
+	) {
 		const lines = [];
 		const timestamp = new Date().toLocaleString();
 		const service = details.service || "unknown";
 		const serviceDisplayName =
 			service === "lightsail" ? "Lightsail" : "EC2";
+		const SEP = compact ? SEPARATOR_SHORT : SEPARATOR_FULL;
+
+		// Helper to check if value is valid
+		const isValid = (val) =>
+			val && val !== "N/A" && val !== "–" && val !== "-";
 
 		// Account Information
 		lines.push("");
 		lines.push("🏢 ACCOUNT INFORMATION");
-		lines.push(
-			"─────────────────────────────────────────────────────────────────"
-		);
+		lines.push(SEP);
 		if (accountInfo.id) lines.push(`🆔 Account ID: ${accountInfo.id}`);
 		if (accountInfo.name)
 			lines.push(`📊 Account Name: ${accountInfo.name}`);
-
-		// Only show region in account info for Lightsail
 		if (service === "lightsail") {
 			const region = details.region || accountInfo.region;
-			if (region) {
-				lines.push(`🌍 Region: ${region}`);
-			}
+			if (region) lines.push(`🌍 Region: ${region}`);
 		}
-
 		lines.push(`🌐 Service: AWS ${serviceDisplayName}`);
 		lines.push("");
 
 		// Instance Basic Details
 		lines.push("");
 		lines.push(`💻 ${serviceDisplayName.toUpperCase()} INSTANCE OVERVIEW`);
-		lines.push(
-			"─────────────────────────────────────────────────────────────────"
-		);
+		lines.push(SEP);
 
 		if (service === "lightsail") {
-			if (details.name) lines.push(`📝 Instance Name: ${details.name}`);
-			if (details.bundle) lines.push(`💰 Bundle: ${details.bundle}`);
-			if (details.ram) lines.push(`🧠 RAM: ${details.ram}`);
-			if (details.vcpus) lines.push(`⚙️ vCPUs: ${details.vcpus}`);
+			if (isValid(details.name))
+				lines.push(`📝 Instance Name: ${details.name}`);
+			if (isValid(details.bundle))
+				lines.push(`💰 Bundle: ${details.bundle}`);
+			if (isValid(details.instanceType))
+				lines.push(`🖥️ Instance Type: ${details.instanceType}`);
+			if (isValid(details.ram)) lines.push(`🧠 RAM: ${details.ram}`);
+			if (isValid(details.vcpus))
+				lines.push(`⚙️ vCPUs: ${details.vcpus}`);
+			if (isValid(details.networkingType))
+				lines.push(`🌐 Networking Type: ${details.networkingType}`);
+			if (isValid(details.transferAllowance))
+				lines.push(`📡 Transfer: ${details.transferAllowance}`);
+			if (isValid(details.createdAt))
+				lines.push(`📅 Created: ${details.createdAt}`);
+			if (isValid(details.supportCode))
+				lines.push(`🆘 Support Code: ${details.supportCode}`);
 		} else {
-			if (details.instanceId)
+			if (isValid(details.instanceId))
 				lines.push(`🔖 Instance ID: ${details.instanceId}`);
-			if (details.name && details.name !== details.instanceId)
+			if (isValid(details.instanceArn))
+				lines.push(`📎 Instance ARN: ${details.instanceArn}`);
+			if (isValid(details.name) && details.name !== details.instanceId)
 				lines.push(`📝 Name: ${details.name}`);
-			if (details.instanceType)
+			if (isValid(details.instanceType))
 				lines.push(`⚙️ Instance Type: ${details.instanceType}`);
+			if (isValid(details.lifecycle))
+				lines.push(`🔄 Lifecycle: ${details.lifecycle}`);
+			if (isValid(details.launchTime))
+				lines.push(`📅 Launch Time: ${details.launchTime}`);
+			if (isValid(details.ownerId))
+				lines.push(`👤 Owner ID: ${details.ownerId}`);
+			if (isValid(details.managed))
+				lines.push(`🔧 Managed: ${details.managed}`);
+			if (isValid(details.operator))
+				lines.push(`⚙️ Operator: ${details.operator}`);
 		}
 
-		if (details.state)
-			lines.push(`🔄 State: ${details.state.toUpperCase()}`);
-		if (details.availabilityZone)
+		const state = details.state || details.instanceState;
+		if (isValid(state)) lines.push(`🔄 State: ${state.toUpperCase()}`);
+		if (isValid(details.availabilityZone))
 			lines.push(`📍 Availability Zone: ${details.availabilityZone}`);
 
-		// Move region to instance details for EC2
 		if (service === "ec2") {
 			const region = details.region || accountInfo.region;
-			if (region) {
-				lines.push(`🌍 Region: ${region}`);
-			}
+			if (region) lines.push(`🌍 Region: ${region}`);
+			if (isValid(details.tenancy))
+				lines.push(`🏠 Tenancy: ${details.tenancy}`);
+			if (isValid(details.placementGroup))
+				lines.push(`📦 Placement Group: ${details.placementGroup}`);
 		}
-
 		lines.push("");
 
+		// AMI / Blueprint Information (EC2)
+		if (
+			service === "ec2" &&
+			(isValid(details.amiId) || isValid(details.amiName))
+		) {
+			lines.push("");
+			lines.push("🖼️ AMI INFORMATION");
+			lines.push(SEP);
+			if (isValid(details.amiId))
+				lines.push(`🆔 AMI ID: ${details.amiId}`);
+			if (isValid(details.amiName))
+				lines.push(`📝 AMI Name: ${details.amiName}`);
+			if (isValid(details.amiLocation))
+				lines.push(`📍 AMI Location: ${details.amiLocation}`);
+			if (isValid(details.platform))
+				lines.push(`💻 Platform: ${details.platform}`);
+			if (isValid(details.platformDetails))
+				lines.push(`📋 Platform Details: ${details.platformDetails}`);
+			if (isValid(details.architecture))
+				lines.push(`🏗️ Architecture: ${details.architecture}`);
+			if (isValid(details.virtualizationType))
+				lines.push(`🔧 Virtualization: ${details.virtualizationType}`);
+			if (isValid(details.bootMode))
+				lines.push(`🚀 Boot Mode: ${details.bootMode}`);
+			lines.push("");
+		}
+
 		// Operating System
-		if (details.os || details.osVersion || details.blueprint) {
+		if (
+			isValid(details.os) ||
+			isValid(details.osVersion) ||
+			isValid(details.blueprint)
+		) {
 			lines.push("");
 			lines.push("🖥️ OPERATING SYSTEM");
-			lines.push(
-				"─────────────────────────────────────────────────────────────────"
-			);
+			lines.push(SEP);
 			if (service === "lightsail") {
-				if (details.blueprint)
+				if (isValid(details.blueprint))
 					lines.push(`💿 Blueprint: ${details.blueprint}`);
-				if (details.os && details.os !== details.blueprint)
+				if (isValid(details.os) && details.os !== details.blueprint)
 					lines.push(`🏷️ OS: ${details.os}`);
+				if (isValid(details.osVersion))
+					lines.push(`📦 Version: ${details.osVersion}`);
 			} else {
-				if (details.os && details.osVersion) {
+				if (isValid(details.os) && isValid(details.osVersion)) {
 					lines.push(`💿 OS: ${details.os} ${details.osVersion}`);
-				} else if (details.os) {
+				} else if (isValid(details.os)) {
 					lines.push(`💿 OS: ${details.os}`);
-				} else if (details.osVersion) {
+				} else if (isValid(details.osVersion)) {
 					lines.push(`💿 OS Version: ${details.osVersion}`);
 				}
 			}
 			lines.push("");
 		}
 
-		// Storage Configuration
+		// CPU & Hardware (EC2)
 		if (
-			details.storage ||
-			details.tabsData?.storage ||
-			details.rootDevice ||
-			details.ebs
+			service === "ec2" &&
+			(isValid(details.cpuCoreCount) ||
+				isValid(details.cpuThreadsPerCore) ||
+				isValid(details.cpuOptions))
 		) {
 			lines.push("");
-			lines.push("💾 STORAGE CONFIGURATION");
-			lines.push(
-				"─────────────────────────────────────────────────────────────────"
-			);
-
-			if (service === "lightsail") {
-				// Lightsail storage logic
-				const storageInfo = details.tabsData?.storage || {};
-				const primaryStorage =
-					storageInfo.primaryStorage || details.storage;
-
-				if (primaryStorage) {
-					lines.push(`📦 Primary Storage: ${primaryStorage}`);
-				}
-				if (storageInfo.diskName) {
-					lines.push(`🔖 Disk Name: ${storageInfo.diskName}`);
-				}
-				if (storageInfo.diskPath) {
-					lines.push(`📂 Mount Path: ${storageInfo.diskPath}`);
-				}
-				if (storageInfo.diskType) {
-					lines.push(`💽 Disk Type: ${storageInfo.diskType}`);
-				}
-				if (
-					storageInfo.additionalDisks &&
-					storageInfo.additionalDisks !==
-						"No additional disks attached"
-				) {
-					lines.push(
-						`📚 Additional Disks: ${storageInfo.additionalDisks}`
-					);
-				}
-			} else {
-				// EC2 storage logic
-				if (details.rootDevice) {
-					lines.push(`📱 Root Device: ${details.rootDevice}`);
-				}
-				if (details.rootDeviceType) {
-					lines.push(
-						`💽 Root Device Type: ${details.rootDeviceType}`
-					);
-				}
-				if (details.ebs) {
-					lines.push(`💾 EBS Volumes: ${details.ebs}`);
-				}
-				if (details.ebsOptimization) {
-					lines.push(
-						`⚡ EBS Optimization: ${details.ebsOptimization}`
-					);
-				}
-			}
-
+			lines.push("🔧 CPU & HARDWARE");
+			lines.push(SEP);
+			if (isValid(details.cpuCoreCount))
+				lines.push(`💪 CPU Cores: ${details.cpuCoreCount}`);
+			if (isValid(details.cpuThreadsPerCore))
+				lines.push(`🧵 Threads/Core: ${details.cpuThreadsPerCore}`);
+			if (isValid(details.cpuOptions))
+				lines.push(`⚙️ CPU Options: ${details.cpuOptions}`);
+			if (isValid(details.creditSpecification))
+				lines.push(`💳 Credit Spec: ${details.creditSpecification}`);
+			if (isValid(details.nitroEnclave))
+				lines.push(`🔒 Nitro Enclave: ${details.nitroEnclave}`);
+			if (isValid(details.hibernation))
+				lines.push(`💤 Hibernation: ${details.hibernation}`);
+			if (isValid(details.elasticGpuId))
+				lines.push(`🎮 Elastic GPU: ${details.elasticGpuId}`);
+			if (isValid(details.elasticInferenceAccelerator))
+				lines.push(
+					`🧠 Elastic Inference: ${details.elasticInferenceAccelerator}`,
+				);
 			lines.push("");
 		}
 
-		// Network Configuration with IPv6 support
+		// Storage Configuration
 		if (
+			isValid(details.storage) ||
+			details.tabsData?.storage ||
+			isValid(details.rootDevice) ||
+			isValid(details.ebs) ||
+			isValid(details.systemDiskSize)
+		) {
+			lines.push("");
+			lines.push("💾 STORAGE CONFIGURATION");
+			lines.push(SEP);
+
+			if (service === "lightsail") {
+				if (isValid(details.systemDiskSize))
+					lines.push(`📦 System Disk: ${details.systemDiskSize}`);
+				if (isValid(details.systemDiskPath))
+					lines.push(`📂 Mount Path: ${details.systemDiskPath}`);
+				if (isValid(details.storage))
+					lines.push(`💽 Storage: ${details.storage}`);
+				if (
+					isValid(details.totalStorageGiB) &&
+					details.totalStorageGiB > 0
+				) {
+					lines.push(
+						`📊 Total Storage: ${details.totalStorageGiB} GiB`,
+					);
+				}
+				if (isValid(details.automaticSnapshots))
+					lines.push(
+						`📸 Auto Snapshots: ${details.automaticSnapshots}`,
+					);
+				if (
+					details.additionalDisks &&
+					details.additionalDisks.length > 0
+				) {
+					lines.push(
+						`📚 Additional Disks: ${details.additionalDisks.length} attached`,
+					);
+				}
+			} else {
+				if (isValid(details.rootDevice))
+					lines.push(`📱 Root Device: ${details.rootDevice}`);
+				if (isValid(details.rootDeviceName))
+					lines.push(
+						`📂 Root Device Name: ${details.rootDeviceName}`,
+					);
+				if (isValid(details.rootDeviceType))
+					lines.push(
+						`💽 Root Device Type: ${details.rootDeviceType}`,
+					);
+				if (isValid(details.ebs))
+					lines.push(`💾 EBS Volumes: ${details.ebs}`);
+				if (isValid(details.ebsOptimized))
+					lines.push(`⚡ EBS Optimized: ${details.ebsOptimized}`);
+				if (isValid(details.ebsOptimization))
+					lines.push(
+						`⚡ EBS Optimization: ${details.ebsOptimization}`,
+					);
+				if (
+					isValid(details.totalStorageGiB) &&
+					details.totalStorageGiB > 0
+				) {
+					lines.push(
+						`📊 Total Storage: ${details.totalStorageGiB} GiB`,
+					);
+				}
+				// Show block devices if available
+				const blockDevices =
+					details.tabsData?.storage?.blockDevices || [];
+				if (blockDevices.length > 0) {
+					lines.push(`📚 Block Devices:`);
+					blockDevices.forEach((dev) => {
+						const devInfo = [
+							dev.deviceName,
+							dev.volumeId,
+							dev.size,
+							dev.volumeType,
+						]
+							.filter((x) => x)
+							.join(" - ");
+						if (devInfo) lines.push(`   • ${devInfo}`);
+					});
+				}
+			}
+			lines.push("");
+		}
+
+		// Network Configuration with comprehensive IPv4/IPv6 support
+		const hasNetworkInfo =
 			details.publicIpv4 ||
 			details.privateIpv4 ||
 			details.publicIpv6 ||
 			details.privateIpv6 ||
 			details.vpcId ||
-			details.tabsData?.networking
-		) {
+			details.tabsData?.networking ||
+			details.publicDnsName;
+
+		if (hasNetworkInfo) {
 			lines.push("");
 			lines.push("🌐 NETWORK CONFIGURATION");
-			lines.push(
-				"─────────────────────────────────────────────────────────────────"
-			);
+			lines.push(SEP);
 
-			// Use tabsData networking if available, otherwise fall back to top-level properties
 			const networkingData = details.tabsData?.networking;
 
 			// IPv4 addresses
@@ -417,7 +534,6 @@
 					: "";
 				lines.push(`🌍 Public IPv4: ${publicIpv4}${staticLabel}`);
 			}
-
 			if (privateIpv4 && privateIpv4 !== publicIpv4) {
 				lines.push(`🏠 Private IPv4: ${privateIpv4}`);
 			}
@@ -426,32 +542,148 @@
 			const publicIpv6 =
 				networkingData?.ipv6?.publicIp || details.publicIpv6;
 			const ipv6Enabled = networkingData?.ipv6?.enabled;
-
 			if (publicIpv6) {
 				lines.push(`🌍 Public IPv6: ${publicIpv6}`);
 			} else if (ipv6Enabled) {
 				lines.push(`🌍 IPv6: Enabled`);
 			}
-
 			if (details.privateIpv6) {
 				lines.push(`🏠 Private IPv6: ${details.privateIpv6}`);
 			}
 
-			if (service === "ec2" && details.vpcId) {
-				lines.push(`🔗 VPC ID: ${details.vpcId}`);
+			// DNS Names (EC2)
+			if (service === "ec2") {
+				if (isValid(details.publicDns))
+					lines.push(`🌐 Public DNS: ${details.publicDns}`);
+				if (isValid(details.publicDnsName))
+					lines.push(`🌐 Public DNS Name: ${details.publicDnsName}`);
+				if (isValid(details.privateIpDns))
+					lines.push(`🏠 Private IP DNS: ${details.privateIpDns}`);
+				if (isValid(details.privateDnsName))
+					lines.push(
+						`🏠 Private DNS Name: ${details.privateDnsName}`,
+					);
+				if (isValid(details.hostnameType))
+					lines.push(`📛 Hostname Type: ${details.hostnameType}`);
+				if (isValid(details.answerPrivateDnsName))
+					lines.push(
+						`📛 Answer Private DNS: ${details.answerPrivateDnsName}`,
+					);
+				if (isValid(details.elasticIp))
+					lines.push(`📌 Elastic IP: ${details.elasticIp}`);
+				if (isValid(details.autoAssignedIp))
+					lines.push(
+						`🔄 Auto-Assigned IP: ${details.autoAssignedIp}`,
+					);
+			}
+
+			// VPC/Subnet (EC2)
+			if (service === "ec2") {
+				if (isValid(details.vpcId))
+					lines.push(`🔗 VPC ID: ${details.vpcId}`);
+				if (isValid(details.subnetId))
+					lines.push(`📦 Subnet ID: ${details.subnetId}`);
+
+				// Network Interfaces
+				const enis =
+					details.tabsData?.networking?.networkInterfaces || [];
+				if (enis.length > 0) {
+					lines.push(`🔌 Network Interfaces: ${enis.length}`);
+					enis.forEach((eni, idx) => {
+						if (eni.eniId)
+							lines.push(`   ENI ${idx + 1}: ${eni.eniId}`);
+						if (eni.privateIp)
+							lines.push(`      Private IP: ${eni.privateIp}`);
+						if (eni.publicIp)
+							lines.push(`      Public IP: ${eni.publicIp}`);
+					});
+				}
+
+				// Source/Dest Check
+				if (isValid(details.sourceDestCheck))
+					lines.push(
+						`✓ Source/Dest Check: ${details.sourceDestCheck}`,
+					);
 			}
 
 			// Load balancing and distribution info for Lightsail
-			if (service === "lightsail" && networkingData?.loadBalancing) {
+			if (service === "lightsail") {
+				if (networkingData?.loadBalancing)
+					lines.push(
+						`⚖️ Load Balancing: ${networkingData.loadBalancing}`,
+					);
+				if (networkingData?.distribution)
+					lines.push(
+						`📡 Distribution: ${networkingData.distribution}`,
+					);
+			}
+
+			lines.push("");
+		}
+
+		// IAM & Permissions (EC2)
+		if (
+			service === "ec2" &&
+			(isValid(details.iamRole) || isValid(details.keyPair))
+		) {
+			lines.push("");
+			lines.push("🔐 IAM & PERMISSIONS");
+			lines.push(SEP);
+			if (isValid(details.iamRole))
+				lines.push(`👤 IAM Role: ${details.iamRole}`);
+			if (isValid(details.iamInstanceProfile))
 				lines.push(
-					`⚖️ Load Balancing: ${networkingData.loadBalancing}`
+					`📋 Instance Profile: ${details.iamInstanceProfile}`,
 				);
-			}
+			if (isValid(details.keyPair))
+				lines.push(`🔑 Key Pair: ${details.keyPair}`);
+			lines.push("");
+		}
 
-			if (service === "lightsail" && networkingData?.distribution) {
-				lines.push(`📡 Distribution: ${networkingData.distribution}`);
-			}
+		// Monitoring & Maintenance (EC2)
+		if (
+			service === "ec2" &&
+			(isValid(details.monitoring) ||
+				isValid(details.statusChecks) ||
+				isValid(details.systemStatusCheck) ||
+				isValid(details.instanceStatusCheck))
+		) {
+			lines.push("");
+			lines.push("📊 MONITORING & STATUS");
+			lines.push(SEP);
+			if (isValid(details.monitoring))
+				lines.push(`📈 Monitoring: ${details.monitoring}`);
+			if (isValid(details.statusChecks))
+				lines.push(`✓ Status Checks: ${details.statusChecks}`);
+			if (isValid(details.systemStatusCheck))
+				lines.push(`🔧 System Status: ${details.systemStatusCheck}`);
+			if (isValid(details.instanceStatusCheck))
+				lines.push(
+					`💻 Instance Status: ${details.instanceStatusCheck}`,
+				);
+			if (isValid(details.alarmStatus))
+				lines.push(`🚨 Alarms: ${details.alarmStatus}`);
+			if (isValid(details.autoRecovery))
+				lines.push(`🔄 Auto Recovery: ${details.autoRecovery}`);
+			lines.push("");
+		}
 
+		// Metadata Options (EC2)
+		if (
+			service === "ec2" &&
+			(isValid(details.imdsv2) || isValid(details.metadataAccessible))
+		) {
+			lines.push("");
+			lines.push("📝 METADATA OPTIONS");
+			lines.push(SEP);
+			if (isValid(details.imdsv2))
+				lines.push(`🔒 IMDSv2: ${details.imdsv2}`);
+			if (isValid(details.metadataAccessible))
+				lines.push(`📋 Metadata: ${details.metadataAccessible}`);
+			if (isValid(details.httpTokens))
+				lines.push(`🎫 HTTP Tokens: ${details.httpTokens}`);
+			if (isValid(details.httpPutResponseHopLimit))
+				lines.push(`🔢 Hop Limit: ${details.httpPutResponseHopLimit}`);
 			lines.push("");
 		}
 
@@ -463,9 +695,7 @@
 		) {
 			lines.push("");
 			lines.push("🔒 SECURITY CONFIGURATION");
-			lines.push(
-				"─────────────────────────────────────────────────────────────────"
-			);
+			lines.push(SEP);
 
 			if (service === "ec2" && details.securityGroups) {
 				lines.push(`🛡️ Security Groups: ${details.securityGroups}`);
@@ -491,7 +721,7 @@
 									? ` - ${rule.description}`
 									: "";
 							lines.push(
-								`   • [${direction}] ${protocol} ${port} → ${sourceOrDest}${description}`
+								`   • [${direction}] ${protocol} ${port} → ${sourceOrDest}${description}`,
 							);
 						} else {
 							lines.push(`   • ${rule}`);
@@ -517,11 +747,11 @@
 							) {
 								// Check if it's a concatenated range like "5010050500"
 								const halfLength = Math.floor(
-									rule.portRange.length / 2
+									rule.portRange.length / 2,
 								);
 								const firstHalf = rule.portRange.substring(
 									0,
-									halfLength
+									halfLength,
 								);
 								const secondHalf =
 									rule.portRange.substring(halfLength);
@@ -535,7 +765,7 @@
 								}
 							}
 							lines.push(
-								`   • ${rule.application} (${rule.protocol} ${formattedPortRange}) - ${rule.allowConnections}`
+								`   • ${rule.application} (${rule.protocol} ${formattedPortRange}) - ${rule.allowConnections}`,
 							);
 						});
 					}
@@ -543,7 +773,7 @@
 						lines.push("\n🔥 IPv6 Firewall Rules:");
 						ipv6Rules.forEach((rule) => {
 							lines.push(
-								`   • ${rule.application} (${rule.protocol} ${rule.portRange}) - ${rule.allowConnections}`
+								`   • ${rule.application} (${rule.protocol} ${rule.portRange}) - ${rule.allowConnections}`,
 							);
 						});
 					}
@@ -569,13 +799,11 @@
 		) {
 			lines.push("");
 			lines.push("🏷️ TAGS");
-			lines.push(
-				"─────────────────────────────────────────────────────────────────"
-			);
+			lines.push(SEP);
 			Object.entries(details.tabsData.tags.tags).forEach(
 				([key, value]) => {
 					lines.push(`📌 ${key}: ${value}`);
-				}
+				},
 			);
 			lines.push("");
 		}
@@ -584,9 +812,7 @@
 		if (details.sshKeyName && details.sshKeyName !== "N/A") {
 			lines.push("");
 			lines.push("🔑 SSH KEY");
-			lines.push(
-				"─────────────────────────────────────────────────────────────────"
-			);
+			lines.push(SEP);
 			lines.push(`🗝️ Key Name: ${details.sshKeyName}`);
 			lines.push("");
 		}
@@ -594,17 +820,15 @@
 		// Quick Access Links
 		lines.push("");
 		lines.push("🔗 QUICK ACCESS");
-		lines.push(
-			"─────────────────────────────────────────────────────────────────"
-		);
+		lines.push(SEP);
 		const regionCode = details.region || accountInfo.region || "us-east-1";
 
 		if (service === "lightsail") {
 			if (details.name) {
 				lines.push(
 					`🖥️ Console: https://lightsail.aws.amazon.com/ls/webapp/${regionCode}/instances/${encodeURIComponent(
-						details.name
-					)}`
+						details.name,
+					)}`,
 				);
 			}
 		} else {
@@ -627,8 +851,8 @@
 				details.os && details.os.toLowerCase().includes("ubuntu")
 					? "ubuntu"
 					: details.os && details.os.toLowerCase().includes("amazon")
-					? "ec2-user"
-					: "ec2-user";
+						? "ec2-user"
+						: "ec2-user";
 
 			// Format IPv6 addresses correctly for SSH
 			const sshAddress = sshIp.includes(":") ? `[${sshIp}]` : sshIp;
@@ -637,7 +861,7 @@
 					? `${details.keyPair}.pem`
 					: "your-key.pem";
 			lines.push(
-				`🌐 SSH Access: ssh -i ${keyName} ${sshUser}@${sshAddress}`
+				`🌐 SSH Access: ssh -i ${keyName} ${sshUser}@${sshAddress}`,
 			);
 		}
 		lines.push("");
@@ -645,8 +869,83 @@
 		return lines.join("\n");
 	};
 
+	// Maximum URL length to avoid 400 Bad Request errors
+	const MAX_URL_LENGTH = 7500;
+
+	// Copy text to clipboard with fallback
+	window.awsExtension.copyToClipboard = async function (text) {
+		try {
+			await navigator.clipboard.writeText(text);
+			return true;
+		} catch (err) {
+			// Fallback for older browsers
+			const textArea = document.createElement("textarea");
+			textArea.value = text;
+			textArea.style.position = "fixed";
+			textArea.style.left = "-999999px";
+			textArea.style.top = "-999999px";
+			document.body.appendChild(textArea);
+			textArea.focus();
+			textArea.select();
+			try {
+				document.execCommand("copy");
+				document.body.removeChild(textArea);
+				return true;
+			} catch (err2) {
+				document.body.removeChild(textArea);
+				return false;
+			}
+		}
+	};
+
+	// Show notification toast
+	window.awsExtension.showNotification = function (message, duration = 3000) {
+		const notification = document.createElement("div");
+		notification.style.cssText = `
+			position: fixed;
+			top: 20px;
+			right: 20px;
+			background: linear-gradient(135deg, #28a745, #20c997);
+			color: white;
+			padding: 14px 20px;
+			border-radius: 8px;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+			z-index: 10000;
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+			font-size: 14px;
+			font-weight: 600;
+			animation: slideIn 0.3s ease;
+		`;
+		notification.textContent = message;
+
+		// Add animation keyframes
+		if (!document.getElementById("notification-animation")) {
+			const style = document.createElement("style");
+			style.id = "notification-animation";
+			style.textContent = `
+				@keyframes slideIn {
+					from { transform: translateX(100%); opacity: 0; }
+					to { transform: translateX(0); opacity: 1; }
+				}
+			`;
+			document.head.appendChild(style);
+		}
+
+		document.body.appendChild(notification);
+		setTimeout(() => {
+			if (notification.parentNode) {
+				notification.parentNode.removeChild(notification);
+			}
+		}, duration);
+	};
+
 	// Compose subject and open configured composer
-	window.awsExtension.openComposer = function (subject, body) {
+	// Now uses compact format for URL-based sharing to avoid 400 errors
+	window.awsExtension.openComposer = function (
+		subject,
+		body,
+		fullBody = null,
+	) {
 		chrome.storage.sync.get(["composer"], (res) => {
 			const composer = res.composer || "gmail";
 			const sub = encodeURIComponent(subject);
@@ -676,40 +975,53 @@
 					break;
 				// Desktop Applications
 				case "thunderbird":
-					// Thunderbird uses mailto protocol (system integration)
-					url = `mailto:?subject=${sub}&body=${b}`;
-					break;
 				case "outlook-office":
-					// Outlook Desktop uses mailto protocol
-					url = `mailto:?subject=${sub}&body=${b}`;
-					break;
 				case "apple-mail":
-					// Apple Mail uses mailto protocol
-					url = `mailto:?subject=${sub}&body=${b}`;
-					break;
 				case "evolution":
-					// Evolution (Linux) uses mailto protocol
-					url = `mailto:?subject=${sub}&body=${b}`;
-					break;
 				case "kmail":
-					// KMail (Linux) uses mailto protocol
-					url = `mailto:?subject=${sub}&body=${b}`;
-					break;
 				case "mailto":
 				default:
-					// System default email handler
 					url = `mailto:?subject=${sub}&body=${b}`;
 					break;
 			}
 
-			try {
-				window.open(url, "_blank");
-			} catch (error) {
-				console.warn(
-					"Email composer failed, trying mailto fallback:",
-					error
-				);
-				window.open(`mailto:?subject=${sub}&body=${b}`, "_blank");
+			// Check URL length and use clipboard fallback if too long
+			if (url.length > MAX_URL_LENGTH) {
+				const clipboardBody = fullBody || body;
+				window.awsExtension
+					.copyToClipboard(clipboardBody)
+					.then((success) => {
+						if (success) {
+							window.awsExtension.showNotification(
+								"📋 Instance details copied to clipboard! Paste into your email.",
+								4000,
+							);
+							// Open composer without body, user will paste
+							const shortUrl =
+								url.split("&body=")[0] ||
+								`mailto:?subject=${sub}`;
+							try {
+								window.open(shortUrl, "_blank");
+							} catch (error) {
+								console.warn("Failed to open composer:", error);
+							}
+						} else {
+							window.awsExtension.showNotification(
+								"⚠️ URL too long. Please try copying manually.",
+								4000,
+							);
+						}
+					});
+			} else {
+				try {
+					window.open(url, "_blank");
+				} catch (error) {
+					console.warn(
+						"Email composer failed, trying mailto fallback:",
+						error,
+					);
+					window.open(`mailto:?subject=${sub}&body=${b}`, "_blank");
+				}
 			}
 		});
 	};
