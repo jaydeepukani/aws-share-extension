@@ -74,16 +74,14 @@
 					const value = copySpan.textContent?.trim();
 					if (value && value !== "–" && value !== "-") return value;
 				}
-				const valueDiv = parentDiv.querySelector("div:last-child");
-				if (valueDiv && valueDiv !== labelElement.parentElement) {
-					let value = valueDiv.textContent?.trim();
-					if (value && value !== "–" && value !== "-") {
-						const labelTxt = labelElement.textContent?.trim();
-						if (labelTxt && value.startsWith(labelTxt)) {
-							value = value.substring(labelTxt.length).trim();
-						}
-						return value;
-					}
+				
+				let value = parentDiv.textContent.replace(/\s+/g, ' ').trim();
+				let labelTxt = labelElement.textContent.replace(/\s+/g, ' ').trim();
+				if (value.startsWith(labelTxt)) {
+					value = value.substring(labelTxt.length).trim();
+				}
+				if (value && value !== "–" && value !== "-") {
+					return value;
 				}
 			}
 		}
@@ -1011,7 +1009,12 @@
 			await handleShare(button);
 		});
 
-		document.body.appendChild(button);
+		let activeDoc = document;
+		const computeIframe = document.getElementById("compute-react-frame");
+		if (computeIframe && computeIframe.contentDocument) {
+			activeDoc = computeIframe.contentDocument;
+		}
+		activeDoc.body.appendChild(button);
 		buttonExists = true;
 	}
 
@@ -1045,11 +1048,7 @@
 			if (details.instanceState && details.instanceState !== "N/A") {
 				subject += ` [${details.instanceState.toUpperCase()}]`;
 			}
-
-			// Use compact body for URL to avoid 400 errors, full body for clipboard fallback
-			const compactBody = buildEmailBody(details, accountInfo, true);
-			const fullBody = buildEmailBody(details, accountInfo, false);
-			openComposer(subject, compactBody, fullBody);
+			window.awsExtension.showShareModal(details, accountInfo);
 		} catch (error) {
 			console.error("EC2 Share Error:", error);
 			button.innerHTML = `
@@ -1120,6 +1119,10 @@
 		if (window.location.href !== currentUrl) {
 			currentUrl = window.location.href;
 			buttonExists = false;
+			const existingButton = document.querySelector(".aws-ec2-floating-button");
+			if (existingButton) {
+				existingButton.remove();
+			}
 			initialize();
 		}
 	}, 2000);

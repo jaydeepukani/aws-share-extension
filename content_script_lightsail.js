@@ -26,6 +26,7 @@
 		const hostname = window.location.hostname;
 		return (
 			url.includes("lightsail.aws.amazon.com") ||
+			url.includes("/lightsail/") ||
 			hostname.includes("lightsail")
 		);
 	}
@@ -66,8 +67,8 @@
 			background: #FF9900;
 			color: white;
 			border: none;
-			border-radius: 50px 0 0 50px;
-			padding: 12px 16px 12px 20px;
+			border-radius: 8px 0 0 8px;
+			padding: 10px 15px;
 			cursor: pointer;
 			box-shadow: -4px 0 12px rgba(255, 153, 0, 0.3);
 			transition: all 0.3s ease;
@@ -545,50 +546,65 @@
 		};
 
 		try {
-			// Extract IPv4 public IP
-			const publicIpv4Element = document.querySelector(
-				'[data-testid="ls.instanceNetworkingIp.publicIp"]',
-			);
-			if (publicIpv4Element) {
-				const ipContainer =
-					publicIpv4Element.closest(".css-1fbqy03") ||
-					publicIpv4Element.parentElement;
-				if (ipContainer) {
-					const ipElement = ipContainer.querySelector("h2");
-					if (ipElement)
-						networkingData.ipv4.publicIp =
-							ipElement.textContent?.trim();
+			// Helper to extract fields based on label text
+			const extractFieldByLabel = (labelText) => {
+				const walker = document.createTreeWalker(document.body, 4 /* NodeFilter.SHOW_TEXT */, null, false);
+				let node;
+				while ((node = walker.nextNode())) {
+					if (node.nodeValue.trim() === labelText) {
+						let parentDiv = node.parentElement;
+						for (let i = 0; i < 3; i++) {
+							if (parentDiv && parentDiv.parentElement) {
+								parentDiv = parentDiv.parentElement;
+								const copySpan = parentDiv.querySelector('[class*="text-to-copy"]');
+								if (copySpan) {
+									const value = copySpan.textContent?.trim();
+									if (value && value !== "–" && value !== "-") return value;
+								}
+								
+								// Fallback: strip label from text content
+								let value = parentDiv.textContent.replace(/\s+/g, ' ').trim();
+								let labelTxt = labelText.replace(/\s+/g, ' ').trim();
+								if (value.startsWith(labelTxt)) {
+									value = value.substring(labelTxt.length).trim();
+									if (value && value !== "–" && value !== "-") {
+										return value;
+									}
+								}
+							}
+						}
+					}
 				}
+				return null;
+			};
+
+			// Extract IPv4 public IP (could be "Public IPv4 address" or "Static IP address")
+			let pubIp = extractFieldByLabel("Public IPv4 address");
+			if (!pubIp) {
+				pubIp = extractFieldByLabel("Static IP address");
+				if (pubIp) networkingData.ipv4.isStaticIp = true;
 			}
+			if (pubIp) networkingData.ipv4.publicIp = pubIp;
 
 			// Extract IPv4 private IP
-			const privateIpv4Element = document.querySelector(
-				'[data-testid="ls.instanceNetworkingIp.privateIp"]',
-			);
-			if (privateIpv4Element) {
-				const ipContainer =
-					privateIpv4Element.closest(".css-1fbqy03") ||
-					privateIpv4Element.parentElement;
-				if (ipContainer) {
-					const ipElement = ipContainer.querySelector("h2");
-					if (ipElement)
-						networkingData.ipv4.privateIp =
-							ipElement.textContent?.trim();
-				}
-			}
+			const privIp = extractFieldByLabel("Private IPv4 address");
+			if (privIp) networkingData.ipv4.privateIp = privIp;
 
-			// Check for static IP
-			const staticIpDescription = document.querySelector(
-				'[data-testid="ls.instanceNetworkingIp.staticIpDescription"]',
-			);
+			// Extract IPv6 address
+			const ipv6 = extractFieldByLabel("Public IPv6 address");
+			if (ipv6) {
+				networkingData.ipv6.enabled = true;
+				networkingData.ipv6.addresses.push(ipv6);
+			}
+			const staticIpDescription = document.querySelector('[class*="static-ip-name"]');
 			if (staticIpDescription) {
-				networkingData.ipv4.isStaticIp = true;
 				const staticIpName = staticIpDescription.textContent?.match(
-					/Static IP[:\s]+([a-zA-Z0-9_-]+)/i,
+					/([a-zA-Z0-9_-]+)/i,
 				);
 				if (staticIpName)
 					networkingData.ipv4.staticIpName = staticIpName[1];
 			}
+
 
 			// Extract IPv6 information
 			const ipv6Toggle = document.querySelector(
@@ -1084,11 +1100,7 @@
 			if (details.state && details.state !== "N/A") {
 				subject += ` [${details.state.toUpperCase()}]`;
 			}
-
-			// Use compact body for URL to avoid 400 errors, full body for clipboard fallback
-			const compactBody = buildEmailBody(details, accountInfo, true);
-			const fullBody = buildEmailBody(details, accountInfo, false);
-			openComposer(subject, compactBody, fullBody);
+			window.awsExtension.showShareModal(details, accountInfo);
 		} catch (error) {
 			console.error("Lightsail Share Error:", error);
 			button.innerHTML = `
@@ -1147,6 +1159,12 @@
 				setTimeout(() => {
 					buttonCreationInProgress = false;
 				}, 2000);
+			}
+		} else {
+			const existingButton = document.querySelector(".aws-lightsail-floating-button");
+			if (existingButton) {
+				existingButton.remove();
+				elementsWithButtons.delete(document.body);
 			}
 		}
 	}

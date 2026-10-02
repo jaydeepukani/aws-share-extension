@@ -69,7 +69,7 @@ function log(message, type = "info") {
 			}
 			break;
 		default:
-			console.log(chalk.white(`${prefix}   ${message}`));
+			console.log(chalk.white(`${prefix} ${message}`));
 	}
 }
 
