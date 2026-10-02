@@ -9,14 +9,7 @@ chrome.runtime.onInstalled.addListener(() => {
 		}
 	});
 
-	// Show welcome notification
-	chrome.notifications.create({
-		type: "basic",
-		iconUrl: "icons/icon48.png",
-		title: "🚀 AWS Instance Share",
-		message:
-			"Extension installed! Click the extension icon to configure settings.",
-	});
+
 });
 
 // Note: Extension icon click now opens popup automatically due to manifest.json action configuration

@@ -1019,7 +1019,14 @@
 	}
 
 	// Handle share functionality
-	async function handleShare(button) {
+	async function handleShare(button, forceRefresh = false) {
+		const instanceId = getInstanceId();
+		
+		if (!forceRefresh && instanceId && detailsCache.has(instanceId)) {
+			window.awsExtension.showShareModal(detailsCache.get(instanceId), extractAccountInfo(), () => handleShare(button, true));
+			return;
+		}
+
 		const originalContent = button.innerHTML;
 		button.innerHTML = `
 			<svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: currentColor; animation: spin 1s linear infinite;">
@@ -1041,14 +1048,10 @@
 			if (!details) throw new Error("Could not extract instance details");
 
 			const accountInfo = extractAccountInfo();
-			let subject = "🚀 AWS EC2 Instance Details";
-			if (details.name && details.name !== details.instanceId) {
-				subject = `🚀 ${details.name} - AWS EC2 Instance`;
+			if (instanceId) {
+				detailsCache.set(instanceId, details);
 			}
-			if (details.instanceState && details.instanceState !== "N/A") {
-				subject += ` [${details.instanceState.toUpperCase()}]`;
-			}
-			window.awsExtension.showShareModal(details, accountInfo);
+			window.awsExtension.showShareModal(details, accountInfo, () => handleShare(button, true));
 		} catch (error) {
 			console.error("EC2 Share Error:", error);
 			button.innerHTML = `

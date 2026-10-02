@@ -428,12 +428,18 @@ console.log("CONTENT SCRIPT COMMON LOADED");
 			lines.push(SEP);
 
 			if (service === "lightsail") {
-				if (isValid(details.systemDiskSize))
-					lines.push(`📦 System Disk: ${details.systemDiskSize}`);
+				let sysDisk = details.systemDiskSize;
+				if (isValid(details.storage) && isValid(sysDisk) && details.storage.includes(sysDisk)) {
+					sysDisk = details.storage; 
+				}
+				if (isValid(sysDisk)) {
+					lines.push(`📦 System Disk: ${sysDisk}`);
+				} else if (isValid(details.storage)) {
+					lines.push(`💽 Storage: ${details.storage}`);
+				}
+				
 				if (isValid(details.systemDiskPath))
 					lines.push(`📂 Mount Path: ${details.systemDiskPath}`);
-				if (isValid(details.storage))
-					lines.push(`💽 Storage: ${details.storage}`);
 				if (
 					isValid(details.totalStorageGiB) &&
 					details.totalStorageGiB > 0
@@ -530,9 +536,13 @@ console.log("CONTENT SCRIPT COMMON LOADED");
 				details.privateIp;
 
 			if (publicIpv4) {
-				const staticLabel = networkingData?.ipv4?.isStaticIp
-					? " (Static)"
-					: "";
+				let staticLabel = "";
+				if (publicIpv4 !== "N/A") {
+					const isStatic = networkingData?.ipv4?.isStaticIp || 
+									 details.isStaticIp || 
+									 (details.elasticIp && details.elasticIp !== "N/A" && details.elasticIp === publicIpv4);
+					staticLabel = isStatic ? " (Static)" : " (Dynamic/Public)";
+				}
 				lines.push(`🌍 Public IPv4: ${publicIpv4}${staticLabel}`);
 			}
 			if (privateIpv4 && privateIpv4 !== publicIpv4) {
@@ -791,6 +801,37 @@ console.log("CONTENT SCRIPT COMMON LOADED");
 				}
 			}
 			lines.push("");
+		}
+
+		// Extra Options (Domains, Snapshots, Metrics)
+		if (details.domains && details.domains.length > 0) {
+			lines.push("");
+			lines.push("🌐 DOMAINS & IP CONFIGURATION");
+			lines.push("─────────────────────────────────────────────────────────────────");
+			if (details.isStaticIp !== undefined) lines.push(`📌 Static IP: ${details.isStaticIp ? "Yes" : "No"} (${details.staticIpName || "N/A"})`);
+			lines.push(`🔄 Domains Status: ${details.domainsStatus || "N/A"}`);
+			details.domains.forEach(d => {
+				lines.push(`   • ${d.domainName} (${d.status || "N/A"})`);
+			});
+		}
+
+		if (details.snapshots && details.snapshots.length > 0) {
+			lines.push("");
+			lines.push("📸 SNAPSHOTS & BACKUPS");
+			lines.push("─────────────────────────────────────────────────────────────────");
+			lines.push(`🔄 Auto Snapshots: ${details.automaticSnapshots || "N/A"}`);
+			details.snapshots.forEach(s => {
+				lines.push(`   • ${s.name} (${s.createdAt || "N/A"})`);
+			});
+		}
+		
+		if (details.history && details.history.length > 0) {
+			lines.push("");
+			lines.push("📈 HISTORY & METRICS");
+			lines.push("─────────────────────────────────────────────────────────────────");
+			details.history.forEach(h => {
+				lines.push(`   • ${h}`);
+			});
 		}
 
 		// Tags Information
@@ -1056,42 +1097,11 @@ console.log("CONTENT SCRIPT COMMON LOADED");
 				btn.style.border = "";
 			});
 		}, 6000);
-
-		// Show count notification
-		if (buttons.length > 0) {
-			const notification = document.createElement("div");
-			notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: linear-gradient(135deg, #FF9500, #FF6B35);
-        color: white;
-        padding: 12px 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        z-index: 10000;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-size: 14px;
-        font-weight: 600;
-      `;
-			notification.textContent = `🎯 Found ${
-				buttons.length
-			} AWS instance${
-				buttons.length !== 1 ? "s" : ""
-			} with share buttons`;
-			document.body.appendChild(notification);
-
-			setTimeout(() => {
-				if (notification.parentNode) {
-					notification.parentNode.removeChild(notification);
-				}
-			}, 4000);
-		}
 	};
 })();
 
 	// In-page Share Modal
-	window.awsExtension.showShareModal = function(details, accountInfo) {
+	window.awsExtension.showShareModal = function(details, accountInfo, onRefresh) {
 		const modalId = 'aws-share-modal-v1';
 		const existingModal = document.getElementById(modalId);
 		if (existingModal) existingModal.remove();
@@ -1192,10 +1202,17 @@ console.log("CONTENT SCRIPT COMMON LOADED");
 					<label class="aws-share-option"><input type="checkbox" id="chk-hardware" checked> Hardware & OS</label>
 					<label class="aws-share-option"><input type="checkbox" id="chk-monitoring" checked> Monitoring & Status</label>
 					<label class="aws-share-option"><input type="checkbox" id="chk-tags" checked> Tags</label>
+					<label class="aws-share-option"><input type="checkbox" id="chk-domains"> Domains & Detailed IP</label>
+					<label class="aws-share-option"><input type="checkbox" id="chk-snapshots"> Snapshots</label>
+					<label class="aws-share-option"><input type="checkbox" id="chk-metrics"> History & Metrics</label>
 				</div>
 			</div>
 			<div class="aws-share-footer">
 				<div class="aws-share-actions" style="flex-wrap: wrap;">
+					<button class="aws-btn" style="background:#f0f0f0; color:#333; margin-right: auto;" id="btn-refresh" title="Force Refresh Data">
+						<svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+						Refresh Data
+					</button>
 					<button class="aws-btn aws-btn-copy" id="btn-copy">
 						<svg viewBox="0 0 24 24"><path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"/></svg>
 						Copy Text
@@ -1204,9 +1221,21 @@ console.log("CONTENT SCRIPT COMMON LOADED");
 						<svg viewBox="0 0 24 24"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 15 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67M8.53 7.33C8.37 7.33 8.1 7.39 7.87 7.64C7.65 7.89 7 8.5 7 9.71C7 10.93 7.89 12.1 8 12.27C8.14 12.44 9.76 14.94 12.25 16C12.84 16.27 13.3 16.42 13.66 16.53C14.25 16.72 14.79 16.69 15.22 16.63C15.7 16.56 16.68 16.03 16.89 15.45C17.1 14.87 17.1 14.38 17.04 14.27C16.97 14.17 16.81 14.11 16.56 13.96C16.31 13.81 15.08 13.2 14.87 13.12C14.66 13.04 14.5 13 14.35 13.22C14.2 13.44 13.73 14.03 13.59 14.18C13.44 14.34 13.29 14.37 13.04 14.22C12.79 14.07 11.97 13.8 11 12.94C10.24 12.27 9.73 11.44 9.57 11.19C9.42 10.94 9.55 10.82 9.68 10.69C9.79 10.58 9.92 10.41 10.05 10.27C10.17 10.13 10.22 10.02 10.3 9.87C10.38 9.72 10.34 9.59 10.28 9.47C10.23 9.35 9.73 8.11 9.52 7.61C9.32 7.12 9.12 7.18 8.97 7.18C8.83 7.18 8.68 7.33 8.53 7.33Z"/></svg>
 						WhatsApp
 					</button>
-					<button class="aws-btn aws-btn-mail" id="btn-mail">
+					<button class="aws-btn aws-btn-mail" id="btn-mail-default" title="Open Default Mail App">
 						<svg viewBox="0 0 24 24"><path d="M4,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4M12,11L20,6H4L12,11M4,18H20V8.39L12,13.39L4,8.39V18Z"/></svg>
-						Email
+						Default Email
+					</button>
+					<button class="aws-btn" style="background:#ea4335; color:white;" id="btn-mail-gmail" title="Share via Gmail">
+						<svg viewBox="0 0 24 24"><path d="M20,18H18V9.25L12,13L6,9.25V18H4V6H5.2L12,10.25L18.8,6H20V18Z"/></svg>
+						Gmail
+					</button>
+					<button class="aws-btn" style="background:#0078d4; color:white;" id="btn-mail-outlook" title="Share via Outlook Personal">
+						<svg viewBox="0 0 24 24"><path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6M20 6L12 11L4 6H20M20 18H4V8L12 13L20 8V18Z"/></svg>
+						Outlook
+					</button>
+					<button class="aws-btn" style="background:#d83b01; color:white;" id="btn-mail-office365" title="Share via Office 365">
+						<svg viewBox="0 0 24 24"><path d="M22 6C22 4.9 21.1 4 20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6M20 6L12 11L4 6H20M20 18H4V8L12 13L20 8V18Z"/></svg>
+						Office 365
 					</button>
 				</div>
 			</div>
@@ -1244,6 +1273,15 @@ console.log("CONTENT SCRIPT COMMON LOADED");
 			if (!document.getElementById('chk-monitoring').checked) {
 				delete filteredDetails.monitoring; delete filteredDetails.statusChecks;
 			}
+			if (!document.getElementById('chk-domains').checked) {
+				delete filteredDetails.domains; delete filteredDetails.domainsStatus; delete filteredDetails.staticIpName; delete filteredDetails.isStaticIp;
+			}
+			if (!document.getElementById('chk-snapshots').checked) {
+				delete filteredDetails.automaticSnapshots; delete filteredDetails.snapshots;
+			}
+			if (!document.getElementById('chk-metrics').checked) {
+				delete filteredDetails.history; delete filteredDetails.metrics;
+			}
 			if (!document.getElementById('chk-tags').checked) {
 				if(filteredDetails.tabsData) delete filteredDetails.tabsData.tags;
 			}
@@ -1272,13 +1310,58 @@ console.log("CONTENT SCRIPT COMMON LOADED");
 		document.getElementById('btn-whatsapp').addEventListener('click', () => {
 			const text = getSubject() + "\n" + generateText(true);
 			window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-			closeModal();
 		});
 
-		document.getElementById('btn-mail').addEventListener('click', () => {
+		const handleEmailShare = (type) => {
 			const subject = getSubject();
 			const body = generateText(true);
-			window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
-			closeModal();
-		});
+			const encSubject = encodeURIComponent(subject);
+			const encBody = encodeURIComponent(body);
+			let url = '';
+			if (type === 'gmail') {
+				url = `https://mail.google.com/mail/?view=cm&fs=1&su=${encSubject}&body=${encBody}`;
+				window.open(url, '_blank');
+			} else if (type === 'outlook') {
+				url = `https://outlook.live.com/mail/0/deeplink/compose?subject=${encSubject}&body=${encBody}`;
+				window.open(url, '_blank');
+			} else if (type === 'office365') {
+				let safeBody = encBody;
+				if (encBody.length > 1500) {
+					try {
+						navigator.clipboard.writeText(body);
+						safeBody = encodeURIComponent("AWS details have been copied to your clipboard.\n\nPlease press Ctrl+V / Cmd+V to paste them here.");
+						alert("Content is too long for Office 365.\n\nThe details have been automatically copied to your clipboard. Please paste (Ctrl+V) into the email body!");
+					} catch(e) {}
+				}
+				url = `https://outlook.office.com/mail/deeplink/compose?subject=${encSubject}&body=${safeBody}`;
+				window.open(url, '_blank');
+			} else {
+				url = `mailto:?subject=${encSubject}&body=${encBody}`;
+				window.location.href = url;
+			}
+		};
+
+		const btnDefault = document.getElementById('btn-mail-default');
+		if(btnDefault) btnDefault.addEventListener('click', () => handleEmailShare('default'));
+		
+		const btnGmail = document.getElementById('btn-mail-gmail');
+		if(btnGmail) btnGmail.addEventListener('click', () => handleEmailShare('gmail'));
+		
+		const btnOutlook = document.getElementById('btn-mail-outlook');
+		if(btnOutlook) btnOutlook.addEventListener('click', () => handleEmailShare('outlook'));
+		
+		const btnOffice = document.getElementById('btn-mail-office365');
+		if(btnOffice) btnOffice.addEventListener('click', () => handleEmailShare('office365'));
+
+		const btnRefresh = document.getElementById('btn-refresh');
+		if (btnRefresh) {
+			if (onRefresh) {
+				btnRefresh.addEventListener('click', () => {
+					closeModal();
+					onRefresh();
+				});
+			} else {
+				btnRefresh.style.display = 'none';
+			}
+		}
 	};

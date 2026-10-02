@@ -18,6 +18,9 @@
 	// Track which elements already have buttons
 	const elementsWithButtons = new WeakSet();
 	let buttonCreationInProgress = false;
+	
+	// Cache for instance details
+	const detailsCache = new Map();
 	let lastButtonCreationTime = 0;
 
 	// Detect if we're on Lightsail service
@@ -558,7 +561,9 @@
 								parentDiv = parentDiv.parentElement;
 								const copySpan = parentDiv.querySelector('[class*="text-to-copy"]');
 								if (copySpan) {
-									const value = copySpan.textContent?.trim();
+									let value = copySpan.textContent?.trim() || "";
+									value = value.replace(/^Info:\s*/i, "");
+									value = value.replace(/(attach|create)\s*static\s*ip/ig, "").trim();
 									if (value && value !== "–" && value !== "-") return value;
 								}
 								
@@ -567,7 +572,16 @@
 								let labelTxt = labelText.replace(/\s+/g, ' ').trim();
 								if (value.startsWith(labelTxt)) {
 									value = value.substring(labelTxt.length).trim();
+									value = value.replace(/^Info:\s*/i, "");
+									value = value.replace(/(attach|create)\s*static\s*ip/ig, "").trim();
+									
+									// If what remains looks like an IP or valid string
 									if (value && value !== "–" && value !== "-") {
+										// sometimes multiple ips or extra text might remain, let's extract the first IP if it exists
+										const ipMatch = value.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
+										if (ipMatch) {
+											return ipMatch[0];
+										}
 										return value;
 									}
 								}
@@ -631,60 +645,44 @@
 			await new Promise((resolve) => setTimeout(resolve, 1500));
 
 			// Extract IPv4 firewall rules
-			const ipv4FirewallTable = document.querySelector(
-				'.integ_ipv4FirewallSection table, [data-analytics*="ipv4FirewallSection"] table',
-			);
-			if (ipv4FirewallTable) {
-				const rows = ipv4FirewallTable.querySelectorAll("tbody tr");
-				rows.forEach((row) => {
-					const cells = row.querySelectorAll("td");
-					if (cells.length >= 4) {
-						const rule = {
-							application: cells[0]?.textContent?.trim() || "",
-							protocol: cells[1]?.textContent?.trim() || "",
-							portRange: extractPortRange(cells[2]),
-							restrictedTo:
-								cells[3]?.textContent?.trim() ||
-								"Any IPv4 address",
-						};
-						if (
-							rule.application ||
-							rule.protocol ||
-							rule.portRange
-						) {
-							networkingData.firewall.ipv4Rules.push(rule);
-						}
-					}
-				});
-			}
+			let ruleTableCount = 0;
+			const tables = document.querySelectorAll("table");
+			tables.forEach((table) => {
+				const headers = Array.from(table.querySelectorAll("th")).map(
+					(th) => th.textContent?.trim().toLowerCase(),
+				);
+				
+				const appIdx = headers.indexOf("application");
+				const protoIdx = headers.indexOf("protocol");
+				const portIdx = headers.findIndex(h => h.includes("port"));
+				const restrictIdx = headers.findIndex(h => h.includes("restrict"));
 
-			// Extract IPv6 firewall rules
-			const ipv6FirewallTable = document.querySelector(
-				'.integ_ipv6FirewallSection table, [data-analytics*="ipv6FirewallSection"] table',
-			);
-			if (ipv6FirewallTable) {
-				const rows = ipv6FirewallTable.querySelectorAll("tbody tr");
-				rows.forEach((row) => {
-					const cells = row.querySelectorAll("td");
-					if (cells.length >= 4) {
-						const rule = {
-							application: cells[0]?.textContent?.trim() || "",
-							protocol: cells[1]?.textContent?.trim() || "",
-							portRange: extractPortRange(cells[2]),
-							restrictedTo:
-								cells[3]?.textContent?.trim() ||
-								"Any IPv6 address",
-						};
-						if (
-							rule.application ||
-							rule.protocol ||
-							rule.portRange
-						) {
-							networkingData.firewall.ipv6Rules.push(rule);
+				if (appIdx !== -1 && protoIdx !== -1) {
+					ruleTableCount++;
+					const isIpv6 = ruleTableCount === 2 || table.textContent.includes("IPv6 Firewall");
+					const rows = table.querySelectorAll("tbody tr");
+					
+					rows.forEach((row) => {
+						const cells = row.querySelectorAll("td");
+						if (cells.length > Math.max(appIdx, protoIdx)) {
+							const rule = {
+								application: cells[appIdx]?.textContent?.trim() || "",
+								protocol: cells[protoIdx]?.textContent?.trim() || "",
+								portRange: portIdx !== -1 ? extractPortRange(cells[portIdx]) : "N/A",
+								allowConnections: restrictIdx !== -1 ? (cells[restrictIdx]?.textContent?.trim() || "Any") : (isIpv6 ? "Any IPv6 address" : "Any IPv4 address"),
+							};
+							
+							if (rule.application || rule.protocol || (rule.portRange && rule.portRange !== "N/A")) {
+								if (isIpv6) {
+									networkingData.firewall.ipv6Rules.push(rule);
+								} else {
+									networkingData.firewall.ipv4Rules.push(rule);
+								}
+							}
 						}
-					}
-				});
-			}
+					});
+				}
+			});
 
 			// Extract load balancer info
 			const loadBalancerSection = document.querySelector(
@@ -854,9 +852,11 @@
 
 			// Try clicking tab element first
 			const tabSelectors = [
-				`a[href*="${tabName}"]`,
-				`[data-testid*="${tabName}"]`,
-				`.awsui_tabs-tab-link_14rmt_1krsb_300[href*="${tabName}"]`,
+				`[role="tab"] a[href$="/${tabName}"]`,
+				`a[role="tab"][href$="/${tabName}"]`,
+				`.awsui_tabs-tab-link_14rmt_1krsb_300[href$="/${tabName}"]`,
+				`li[role="presentation"] a[href$="/${tabName}"]`,
+                `a[href$="/instances/${instanceName}/${tabName}"]`
 			];
 
 			for (const selector of tabSelectors) {
@@ -1053,7 +1053,7 @@
 					}
 				}
 				rules.push(
-					`${rule.application} (${rule.protocol} ${portRange}) - ${rule.restrictedTo}`,
+					`${rule.application} (${rule.protocol} ${portRange}) - ${rule.allowConnections}`,
 				);
 			});
 		}
@@ -1062,7 +1062,7 @@
 			rules.push("=== IPv6 Firewall Rules ===");
 			firewall.ipv6Rules.forEach((rule) => {
 				rules.push(
-					`${rule.application} (${rule.protocol} ${rule.portRange}) - ${rule.restrictedTo}`,
+					`${rule.application} (${rule.protocol} ${rule.portRange}) - ${rule.allowConnections}`,
 				);
 			});
 		}
@@ -1071,7 +1071,13 @@
 	}
 
 	// Handle share functionality
-	async function handleShare(button) {
+	async function handleShare(button, forceRefresh = false) {
+		const instanceName = getInstanceName();
+		if (!forceRefresh && instanceName && detailsCache.has(instanceName)) {
+			window.awsExtension.showShareModal(detailsCache.get(instanceName), extractAccountInfo(), () => handleShare(button, true));
+			return;
+		}
+
 		const originalContent = button.innerHTML;
 		button.innerHTML = `
 			<svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: currentColor; animation: spin 1s linear infinite;">
@@ -1100,7 +1106,11 @@
 			if (details.state && details.state !== "N/A") {
 				subject += ` [${details.state.toUpperCase()}]`;
 			}
-			window.awsExtension.showShareModal(details, accountInfo);
+			
+			if (instanceName) {
+				detailsCache.set(instanceName, details);
+			}
+			window.awsExtension.showShareModal(details, accountInfo, () => handleShare(button, true));
 		} catch (error) {
 			console.error("Lightsail Share Error:", error);
 			button.innerHTML = `
